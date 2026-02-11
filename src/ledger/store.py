@@ -1,0 +1,198 @@
+import sqlite3
+from pathlib import Path
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+
+class Store:
+    def __init__(self, db_path: Path):
+        self.db_path = db_path
+        self._conn: Optional[sqlite3.Connection] = None
+
+    def connect(self) -> None:
+        self._conn = sqlite3.connect(self.db_path)
+        self._conn.row_factory = sqlite3.Row
+
+    def close(self) -> None:
+        if self._conn:
+            self._conn.close()
+            self._conn = None
+
+    def __enter__(self):
+        self.connect()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def create_cycle(self, timestamp: float, status: str, **kwargs) -> int:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            """INSERT INTO cycles (timestamp, status, markets_scanned,
+               opportunities_found, decisions_made, error_message, execution_time_ms)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                timestamp,
+                status,
+                kwargs.get("markets_scanned", 0),
+                kwargs.get("opportunities_found", 0),
+                kwargs.get("decisions_made", 0),
+                kwargs.get("error_message"),
+                kwargs.get("execution_time_ms"),
+            ),
+        )
+        self._conn.commit()
+        return cursor.lastrowid
+
+    def update_cycle(self, cycle_id: int, **kwargs) -> None:
+        fields = []
+        values = []
+        for key, value in kwargs.items():
+            fields.append(f"{key} = ?")
+            values.append(value)
+        values.append(cycle_id)
+        sql = f"UPDATE cycles SET {', '.join(fields)} WHERE cycle_id = ?"
+        self._conn.execute(sql, values)
+        self._conn.commit()
+
+    def record_account_state(self, cycle_id: int, equity: float, cash: float, **kwargs) -> int:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            """INSERT INTO account_states (cycle_id, timestamp, equity, cash,
+               unrealized_pnl, realized_pnl, total_exposure)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                cycle_id,
+                datetime.now().timestamp(),
+                equity,
+                cash,
+                kwargs.get("unrealized_pnl"),
+                kwargs.get("realized_pnl"),
+                kwargs.get("total_exposure"),
+            ),
+        )
+        self._conn.commit()
+        return cursor.lastrowid
+
+    def get_latest_account_state(self) -> Optional[Dict[str, Any]]:
+        cursor = self._conn.execute(
+            "SELECT * FROM account_states ORDER BY timestamp DESC LIMIT 1"
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def record_estimate(
+        self,
+        cycle_id: int,
+        market_id: str,
+        token_id: str,
+        side: str,
+        fair_value: float,
+        market_price: float,
+        gross_edge_bps: float,
+        fee_est_bps: float,
+        slippage_est_bps: float,
+        net_edge_bps: float,
+        confidence: Optional[float] = None,
+    ) -> int:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            """INSERT INTO estimates (cycle_id, market_id, token_id, side,
+               fair_value, market_price, gross_edge_bps, fee_est_bps,
+               slippage_est_bps, net_edge_bps, confidence)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                cycle_id,
+                market_id,
+                token_id,
+                side,
+                fair_value,
+                market_price,
+                gross_edge_bps,
+                fee_est_bps,
+                slippage_est_bps,
+                net_edge_bps,
+                confidence,
+            ),
+        )
+        self._conn.commit()
+        return cursor.lastrowid
+
+    def record_decision(
+        self,
+        cycle_id: int,
+        estimate_id: int,
+        decision: str,
+        reason: str,
+        kelly_fraction: Optional[float] = None,
+        target_size: Optional[float] = None,
+        target_price: Optional[float] = None,
+    ) -> int:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            """INSERT INTO decisions (cycle_id, estimate_id, decision, reason,
+               kelly_fraction, target_size, target_price)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                cycle_id,
+                estimate_id,
+                decision,
+                reason,
+                kelly_fraction,
+                target_size,
+                target_price,
+            ),
+        )
+        self._conn.commit()
+        return cursor.lastrowid
+
+    def record_paper_fill(
+        self,
+        cycle_id: int,
+        decision_id: int,
+        market_id: str,
+        token_id: str,
+        side: str,
+        size: float,
+        avg_fill_price: float,
+        total_cost: float,
+        slippage_bps: float,
+        fees_paid: float,
+    ) -> int:
+        cursor = self._conn.cursor()
+        cursor.execute(
+            """INSERT INTO paper_fills (cycle_id, decision_id, market_id, token_id,
+               side, size, avg_fill_price, total_cost, slippage_bps, fees_paid, timestamp)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                cycle_id,
+                decision_id,
+                market_id,
+                token_id,
+                side,
+                size,
+                avg_fill_price,
+                total_cost,
+                slippage_bps,
+                fees_paid,
+                datetime.now().timestamp(),
+            ),
+        )
+        self._conn.commit()
+        return cursor.lastrowid
+
+    def get_paper_fills(
+        self, cycle_id: Optional[int] = None, market_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        sql = "SELECT * FROM paper_fills WHERE 1=1"
+        params: list[Any] = []
+
+        if cycle_id is not None:
+            sql += " AND cycle_id = ?"
+            params.append(cycle_id)
+        if market_id is not None:
+            sql += " AND market_id = ?"
+            params.append(market_id)
+
+        sql += " ORDER BY timestamp DESC"
+        cursor = self._conn.execute(sql, params)
+        return [dict(row) for row in cursor.fetchall()]
