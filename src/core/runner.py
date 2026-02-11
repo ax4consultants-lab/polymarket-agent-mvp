@@ -8,6 +8,7 @@ from src.core.config import load_config
 from src.core.utils import add_jitter
 from src.ledger.store import Store
 from src.ops.logger import setup_logger
+from src.collector.market_discovery import discover_markets
 
 
 class BotRunner:
@@ -36,7 +37,10 @@ class BotRunner:
             cycle_id = store.create_cycle(cycle_timestamp, 'success')
             
             try:
-                # TODO: Market discovery (Issue 4)
+                # Market discovery
+                markets = discover_markets(self.config)
+                self.logger.info(f"📊 Scanned {len(markets)} markets")
+                
                 # TODO: Orderbook fetching (Issue 5)
                 # TODO: Edge estimation (Issue 6)
                 # TODO: Risk checks (Issue 7)
@@ -50,7 +54,7 @@ class BotRunner:
                     cycle_id,
                     status='success',
                     execution_time_ms=execution_time,
-                    markets_scanned=0,
+                    markets_scanned=len(markets),
                     opportunities_found=0,
                     decisions_made=0
                 )
