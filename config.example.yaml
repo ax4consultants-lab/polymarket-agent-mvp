@@ -1,0 +1,32 @@
+bot:
+  cycle_interval_seconds: 60
+  jitter_seconds: 5
+  log_level: INFO
+  log_file: logs/bot.log
+  database_path: data/bot.db
+
+market_filters:
+  min_volume_24h: 1000.0
+  max_spread_percent: 5.0
+  min_liquidity_depth: 500.0
+  allow_keywords: []
+  deny_keywords: ["test", "demo"]
+
+risk:
+  starting_capital: 10000.0
+  equity_floor: 8000.0
+  max_daily_loss: 1000.0
+  max_error_burst: 5
+  kelly_fraction: 0.25
+  max_position_size_percent: 10.0
+  max_market_exposure_percent: 20.0
+  max_total_exposure_percent: 50.0
+
+fees:
+  taker_fee_bps: 20
+  slippage_buffer_bps: 10
+  fixed_buffer_bps: 5
+
+estimator:
+  fair_value_source: "midpoint"  # midpoint, last_trade, or weighted
+  min_edge_bps: 50
