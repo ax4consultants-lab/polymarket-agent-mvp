@@ -30,3 +30,8 @@ fees:
 estimator:
   fair_value_source: "midpoint"  # midpoint, last_trade, or weighted
   min_edge_bps: 50
+
+orderbook:
+  max_tokens_per_cycle: 200
+  timeout_per_token: 2.0
+  rate_limit_delay: 0.05

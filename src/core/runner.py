@@ -9,7 +9,7 @@ from src.core.utils import add_jitter
 from src.ledger.store import Store
 from src.ops.logger import setup_logger
 from src.collector.market_discovery import discover_markets
-from src.collector.orderbook import fetch_orderbooks_for_markets
+from src.collector.orderbook import fetch_orderbooks_for_markets self.logger.info(f"📈 Fetched books for {len(orderbooks)} tokens")
 
 
 class BotRunner:
@@ -44,10 +44,12 @@ class BotRunner:
 
                 # Orderbook fetching
                 orderbooks = fetch_orderbooks_for_markets(
-                markets,
-                max_tokens=200,
-                timeout_per_token=2.0)
-                self.logger.info(f"📈 Fetched books for {len(orderbooks)} tokens")
+                    markets,
+                    max_tokens=self.config.orderbook.max_tokens_per_cycle,
+                    timeout_per_token=self.config.orderbook.timeout_per_token,
+                    rate_limit_delay=self.config.orderbook.rate_limit_delay
+                )
+
 
                 # Record orderbook summaries in DB
                 for book in orderbooks:
@@ -62,10 +64,7 @@ class BotRunner:
                     )
 
                 
-                # TODO: Orderbook fetching (Issue 5)
-                # TODO: Edge estimation (Issue 6)
-                # TODO: Risk checks (Issue 7)
-                # TODO: Execution (Issue 8)
+                # TODO: Edge estimation (Issue 6) - coming next
                 
                 # For now, just log a successful cycle
                 self.logger.info(f"✓ Cycle {cycle_id} completed (stub)")

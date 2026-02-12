@@ -64,7 +64,11 @@ def fetch_orderbook(token_id: str, timeout: float = 2.0) -> Optional[OrderBook]:
         )
         
     except Exception as e:
-        # Silently skip failed fetches (timeout, rate limit, etc)
+        # Log specific error types for observability
+        logger.warning(
+            f"Failed to fetch orderbook for token {token_id[:20]}...: "
+            f"{type(e).__name__}: {str(e)}"
+        )
         return None
 
 

@@ -50,6 +50,10 @@ class EstimatorConfig(BaseModel):
     fair_value_source: str = "midpoint"  # midpoint, last_trade, weighted
     min_edge_bps: float = 50.0
 
+class OrderbookConfig(BaseModel):
+    max_tokens_per_cycle: int = 200
+    timeout_per_token: float = 2.0
+    rate_limit_delay: float = 0.05
 
 class AppConfig(BaseModel):
     bot: BotConfig
@@ -57,6 +61,7 @@ class AppConfig(BaseModel):
     risk: RiskConfig
     fees: FeesConfig
     estimator: EstimatorConfig
+    orderbook: OrderbookConfig  # Add this line
 
 
 class EnvSettings(BaseSettings):
