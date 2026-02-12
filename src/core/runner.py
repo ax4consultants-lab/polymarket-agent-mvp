@@ -1,4 +1,5 @@
 """Main bot runner loop."""
+import json # ensure this is at the top of the file.
 import signal
 from time import sleep, time
 from datetime import datetime
@@ -66,9 +67,14 @@ class BotRunner:
                     else:
                         p_exec = sig.p_implied_exec_sell
 
+
                     passed_filters = sig.filter_reason is None
-                    # TODO: promote to real JSON array later, e.g. json.dumps([...])
-                    reasons_json = None if sig.filter_reason is None else sig.filter_reason
+
+                    if sig.filter_reason is None:
+                        reasons_json = None
+                    else:
+                        reasons_json = json.dumps([sig.filter_reason])
+
 
                     if passed_filters:
                         passed_signals.append(sig)
