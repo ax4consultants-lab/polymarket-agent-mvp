@@ -1,5 +1,6 @@
 """Market discovery using Polymarket Gamma API."""
 import httpx
+import json
 from typing import List, Optional
 
 from src.core.types import Market, Token
@@ -38,62 +39,24 @@ def fetch_markets_from_gamma(
 def normalize_market(raw: dict) -> Optional[Market]:
     """Convert raw Gamma API response to Market object."""
     try:
-        # Parse tokens
-        tokens = []
-        for outcome in raw.get("outcomes", []):
-            token = Token(
-                id=outcome.get("token_id", ""),
-                symbol=outcome.get("symbol", ""),
-                outcome=outcome.get("outcome", ""),
-                decimals=6  # Standard for Polymarket
-            )
-            tokens.append(token)
+        # Parse outcomes and token IDs (both are JSON strings)
+        outcomes = json.loads(raw.get("outcomes", "[]"))
+        clob_token_ids = json.loads(raw.get("clobTokenIds", "[]"))
         
-        # Extract market fields
-        market = Market(
-            id=raw.get("id", ""),
-            question=raw.get("question", ""),
-            tokens=tokens,
-            volume_24h=float(raw.get("volume24hr", 0.0)),
-            liquidity=float(raw.get("liquidity", 0.0)),
-            spread_bps=0.0,  # Will be computed from orderbook later
-            active=raw.get("active", False)
-        )
-        return market
-    except (KeyError, ValueError, TypeError) as e:
-        # Skip malformed markets
-        return None
-def normalize_market(raw: dict) -> Optional[Market]:
-    """Convert raw Gamma API response to Market object."""
-    try:
-        # Parse tokens - handle both dict and string outcomes
+        # Build tokens
         tokens = []
-        outcomes = raw.get("outcomes", [])
-        outcome_prices = raw.get("outcomePrices", [])
-        
-        # outcomes might be ["Yes", "No"] as strings
-        # or might be dicts with token_id field
         for i, outcome in enumerate(outcomes):
-            if isinstance(outcome, dict):
-                # Outcome is a dict with token_id, etc.
-                token = Token(
-                    id=outcome.get("token_id", ""),
-                    symbol=outcome.get("symbol", "YES" if i == 0 else "NO"),
-                    outcome=outcome.get("outcome", str(outcome)),
-                    decimals=6
-                )
-            else:
-                # Outcome is just a string like "Yes" or "No"
-                # Token IDs should be in a separate field
-                token_ids = raw.get("tokens", [])
-                token_id = token_ids[i] if i < len(token_ids) else f"token_{i}"
-                
-                token = Token(
-                    id=token_id,
-                    symbol="YES" if i == 0 else "NO",
-                    outcome=str(outcome),
-                    decimals=6
-                )
+            token_id = clob_token_ids[i] if i < len(clob_token_ids) else None
+            
+            if not token_id:
+                continue  # Skip if no valid token ID
+            
+            token = Token(
+                id=token_id,
+                symbol="YES" if i == 0 else "NO",
+                outcome=str(outcome),
+                decimals=6
+            )
             tokens.append(token)
         
         # If no tokens parsed, skip this market
@@ -102,16 +65,16 @@ def normalize_market(raw: dict) -> Optional[Market]:
         
         # Extract market fields
         market = Market(
-            id=raw.get("id", raw.get("condition_id", "")),
-            question=raw.get("question", raw.get("title", "")),
+            id=raw.get("id", ""),
+            question=raw.get("question", ""),
             tokens=tokens,
-            volume_24h=float(raw.get("volume24hr", raw.get("volume", 0.0))),
-            liquidity=float(raw.get("liquidity", 0.0)),
+            volume_24h=float(raw.get("volume24hr", 0.0)),
+            liquidity=float(raw.get("liquidityNum", raw.get("liquidity", 0.0))),
             spread_bps=0.0,  # Will be computed from orderbook later
             active=raw.get("active", True)
         )
         return market
-    except (KeyError, ValueError, TypeError, IndexError) as e:
+    except (KeyError, ValueError, TypeError, json.JSONDecodeError) as e:
         # Skip malformed markets
         return None
 
