@@ -37,6 +37,7 @@ class OrderBook(BaseModel):
     mid_price: Optional[float] = None
     spread_bps: Optional[float] = None
     last_trade_price: Optional[float] = None
+    depth_within_1pct: Optional[float] = None
     timestamp: float
 
 
