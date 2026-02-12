@@ -55,13 +55,22 @@ class OrderbookConfig(BaseModel):
     timeout_per_token: float = 2.0
     rate_limit_delay: float = 0.05
 
+class SignalsConfig(BaseModel):
+    max_spread_bps: float = 500.0
+    min_depth_usdc: float = 100.0
+    max_snapshot_age_s: int = 300
+    ema_lookback_cycles: int = 5
+    ema_alpha: float = 0.3
+    top_n_to_log: int = 10
+
 class AppConfig(BaseModel):
     bot: BotConfig
     market_filters: MarketFilterConfig
     risk: RiskConfig
     fees: FeesConfig
     estimator: EstimatorConfig
-    orderbook: OrderbookConfig  # Add this line
+    orderbook: OrderbookConfig
+    signals: SignalsConfig
 
 
 class EnvSettings(BaseSettings):

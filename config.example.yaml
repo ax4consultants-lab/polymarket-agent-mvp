@@ -35,3 +35,11 @@ orderbook:
   max_tokens_per_cycle: 200
   timeout_per_token: 2.0
   rate_limit_delay: 0.05
+
+signals:
+  max_spread_bps: 500.0
+  min_depth_usdc: 100.0
+  max_snapshot_age_s: 300
+  ema_lookback_cycles: 5
+  ema_alpha: 0.3
+  top_n_to_log: 10

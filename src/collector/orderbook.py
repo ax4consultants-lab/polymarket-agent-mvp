@@ -12,6 +12,31 @@ logger = logging.getLogger("polymarket_bot.orderbook")
 # Initialize read-only CLOB client (no auth needed)
 clob_client = ClobClient(host="https://clob.polymarket.com")
 
+def calculate_depth_within_1pct(bids: List, asks: List, mid_price: float) -> float:
+    """
+    Calculate notional depth within 1% of mid price.
+    
+    Returns total USD value of liquidity within ±1% of mid.
+    """
+    if mid_price <= 0:
+        return 0.0
+    
+    bid_depth = 0.0
+    ask_depth = 0.0
+    
+    # Bids within 1% below mid
+    threshold_bid = mid_price * 0.99
+    for bid in bids:
+        if bid.price >= threshold_bid:
+            bid_depth += bid.price * bid.size
+    
+    # Asks within 1% above mid
+    threshold_ask = mid_price * 1.01
+    for ask in asks:
+        if ask.price <= threshold_ask:
+            ask_depth += ask.price * ask.size
+    
+    return bid_depth + ask_depth
 
 def fetch_orderbook(token_id: str, timeout: float = 2.0) -> Optional[OrderBook]:
     """
@@ -51,6 +76,9 @@ def fetch_orderbook(token_id: str, timeout: float = 2.0) -> Optional[OrderBook]:
         mid_price = (best_bid + best_ask) / 2.0 if best_bid and best_ask else 0.0
         spread_bps = ((best_ask - best_bid) / best_bid * 10000) if best_bid > 0 else 9999.0
         
+        # Compute depth within 1% of mid
+        depth_within_1pct = calculate_depth_within_1pct(bids, asks, mid_price)
+
         return OrderBook(
             market_id="",  # Will be set by caller
             token_id=token_id,
@@ -60,6 +88,8 @@ def fetch_orderbook(token_id: str, timeout: float = 2.0) -> Optional[OrderBook]:
             best_ask=best_ask,
             mid_price=mid_price,
             spread_bps=spread_bps,
+            last_trade_price=None, # Not provided by CLob API 120226
+            depth_within_1pct=depth_within_1pct, #added 120226
             timestamp=time.time()
         )
         

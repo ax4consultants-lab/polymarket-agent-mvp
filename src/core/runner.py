@@ -9,7 +9,7 @@ from src.core.utils import add_jitter
 from src.ledger.store import Store
 from src.ops.logger import setup_logger
 from src.collector.market_discovery import discover_markets
-from src.collector.orderbook import fetch_orderbooks_for_markets self.logger.info(f"📈 Fetched books for {len(orderbooks)} tokens")
+from src.collector.orderbook import fetch_orderbooks_for_markets
 
 
 class BotRunner:
@@ -49,7 +49,7 @@ class BotRunner:
                     timeout_per_token=self.config.orderbook.timeout_per_token,
                     rate_limit_delay=self.config.orderbook.rate_limit_delay
                 )
-
+                self.logger.info(f"📈 Fetched books for {len(orderbooks)} tokens")
 
                 # Record orderbook summaries in DB
                 for book in orderbooks:
@@ -61,6 +61,7 @@ class BotRunner:
                         best_ask=book.best_ask,
                         mid_price=book.mid_price,
                         spread_bps=book.spread_bps,
+                        depth_within_1pct=book.depth_within_1pct,  # Add this
                     )
 
                 

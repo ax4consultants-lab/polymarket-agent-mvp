@@ -98,6 +98,26 @@ CREATE TABLE IF NOT EXISTS orderbook_summaries (
 );
 """
 
+CREATE_SIGNALS_TABLE = """
+CREATE TABLE IF NOT EXISTS signals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cycle_id INTEGER NOT NULL,
+    market_id TEXT NOT NULL,
+    token_id TEXT NOT NULL,
+    side TEXT NOT NULL CHECK(side IN ('buy', 'sell')),
+    p_implied_mid REAL NOT NULL,
+    p_implied_exec REAL NOT NULL,
+    p_fair REAL NOT NULL,
+    edge_bps REAL NOT NULL,
+    spread_bps REAL NOT NULL,
+    depth_within_1pct REAL,
+    passed_filters INTEGER NOT NULL,
+    reasons_json TEXT,
+    timestamp REAL NOT NULL,
+    FOREIGN KEY (cycle_id) REFERENCES cycles(cycle_id)
+);
+"""
+
 CREATE_INDICES = [
     "CREATE INDEX IF NOT EXISTS idx_cycles_timestamp ON cycles(timestamp);",
     "CREATE INDEX IF NOT EXISTS idx_account_states_cycle ON account_states(cycle_id);",
@@ -108,6 +128,10 @@ CREATE_INDICES = [
     "CREATE INDEX IF NOT EXISTS idx_paper_fills_market ON paper_fills(market_id, token_id);",
     "CREATE INDEX IF NOT EXISTS idx_orderbook_summaries_cycle ON orderbook_summaries(cycle_id);",
     "CREATE INDEX IF NOT EXISTS idx_orderbook_summaries_market ON orderbook_summaries(market_id, token_id);",
+    "CREATE INDEX IF NOT EXISTS idx_signals_cycle ON signals(cycle_id);",
+    "CREATE INDEX IF NOT EXISTS idx_signals_market_token ON signals(market_id, token_id);",
+    "CREATE INDEX IF NOT EXISTS idx_signals_edge ON signals(cycle_id, edge_bps DESC);",
+
 
 ]
 
@@ -122,6 +146,7 @@ def initialize_database(db_path: Path) -> None:
     cursor.execute(CREATE_DECISIONS_TABLE)
     cursor.execute(CREATE_PAPER_FILLS_TABLE)
     cursor.execute(CREATE_ORDERBOOK_SUMMARIES_TABLE)
+    cursor.execute(CREATE_SIGNALS_TABLE)
 
     for sql in CREATE_INDICES:
         cursor.execute(sql)

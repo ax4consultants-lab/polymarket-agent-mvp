@@ -229,3 +229,62 @@ class Store:
         self._conn.commit()
         return cursor.lastrowid
 
+    def record_signal(
+        self,
+        cycle_id: int,
+        market_id: str,
+        token_id: str,
+        side: str,
+        p_implied_mid: float,
+        p_implied_exec: float,
+        p_fair: float,
+        edge_bps: float,
+        spread_bps: float,
+        depth_within_1pct: Optional[float] = None,
+        passed_filters: bool = True,
+        reasons_json: Optional[str] = None,
+    ) -> int:
+        """Record a signal candidate."""
+        cursor = self._conn.cursor()
+        cursor.execute(
+            """INSERT INTO signals (cycle_id, market_id, token_id, side,
+               p_implied_mid, p_implied_exec, p_fair, edge_bps, spread_bps,
+               depth_within_1pct, passed_filters, reasons_json, timestamp)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                cycle_id,
+                market_id,
+                token_id,
+                side,
+                p_implied_mid,
+                p_implied_exec,
+                p_fair,
+                edge_bps,
+                spread_bps,
+                depth_within_1pct,
+                1 if passed_filters else 0,
+                reasons_json,
+                datetime.now().timestamp(),
+            ),
+        )
+        self._conn.commit()
+        return cursor.lastrowid
+
+    def get_signals_for_cycle(
+        self, cycle_id: int, passed_only: bool = True, limit: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Retrieve signals for a cycle, ordered by edge descending."""
+        sql = "SELECT * FROM signals WHERE cycle_id = ?"
+        params: list[Any] = [cycle_id]
+    
+        if passed_only:
+            sql += " AND passed_filters = 1"
+    
+        sql += " ORDER BY edge_bps DESC"
+    
+        if limit:
+            sql += f" LIMIT {limit}"
+    
+        cursor = self._conn.execute(sql, params)
+        return [dict(row) for row in cursor.fetchall()]
+
