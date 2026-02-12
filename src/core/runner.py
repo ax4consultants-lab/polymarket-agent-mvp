@@ -4,6 +4,7 @@ from time import sleep, time
 from datetime import datetime
 from pathlib import Path
 
+from src.strategy.signal_generation import SignalGenerator
 from src.core.config import load_config
 from src.core.utils import add_jitter
 from src.ledger.store import Store
@@ -15,6 +16,7 @@ from src.collector.orderbook import fetch_orderbooks_for_markets
 class BotRunner:
     def __init__(self):
         self.config = load_config()
+        self.signal_generator = SignalGenerator(self.config.signals)
         self.logger = setup_logger(self.config)
         self.store = Store(Path(self.config.bot.database_path))
         self.running = True
@@ -50,6 +52,46 @@ class BotRunner:
                     rate_limit_delay=self.config.orderbook.rate_limit_delay
                 )
                 self.logger.info(f"📈 Fetched books for {len(orderbooks)} tokens")
+
+                # --- Signal generation (Issue 6 Part 3) ---
+                signals = self.signal_generator.generate_signals(cycle_id, orderbooks)
+
+                # Persist signals to DB
+                for sig in signals:
+                    if sig.side == "buy":
+                        p_exec = sig.p_implied_exec_buy
+                    else:
+                        p_exec = sig.p_implied_exec_sell
+
+                    passed_filters = sig.filter_reason is None
+                    reasons_json = None if sig.filter_reason is None else sig.filter_reason
+
+                    store.record_signal(
+                        cycle_id=sig.cycle_id,
+                        market_id=sig.market_id,
+                        token_id=sig.token_id,
+                        side=sig.side,
+                        p_implied_mid=sig.p_implied_mid,
+                        p_implied_exec=p_exec,
+                        p_fair=sig.fair_value_prob,
+                        edge_bps=sig.edge_bps,
+                        spread_bps=sig.spread_bps,
+                        depth_within_1pct=sig.depth_within_1pct,
+                        passed_filters=passed_filters,
+                        reasons_json=reasons_json,
+                    )
+
+
+                # Log top N candidates
+                if signals:
+                    self.logger.info(
+                        f"🎯 Top {len(signals)} signals this cycle: "
+                        + ", ".join(
+                            f"{s.side.upper()} {s.token_id[:6]} edge={s.edge_bps:.1f}bps"
+                            for s in signals
+                        )
+                    )
+
 
                 # Record orderbook summaries in DB
                 for book in orderbooks:
