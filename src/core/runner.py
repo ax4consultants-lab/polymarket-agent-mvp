@@ -56,6 +56,9 @@ class BotRunner:
                 # --- Signal generation (Issue 6 Part 3) ---
                 signals = self.signal_generator.generate_signals(cycle_id, orderbooks)
 
+                signals_evaluated_total = len(signals)
+                passed_signals = []
+
                 # Persist signals to DB
                 for sig in signals:
                     if sig.side == "buy":
@@ -64,7 +67,11 @@ class BotRunner:
                         p_exec = sig.p_implied_exec_sell
 
                     passed_filters = sig.filter_reason is None
+                    # TODO: promote to real JSON array later, e.g. json.dumps([...])
                     reasons_json = None if sig.filter_reason is None else sig.filter_reason
+
+                    if passed_filters:
+                        passed_signals.append(sig)
 
                     store.record_signal(
                         cycle_id=sig.cycle_id,
@@ -82,15 +89,27 @@ class BotRunner:
                     )
 
 
-                # Log top N candidates
-                if signals:
+
+                # Logging: distinguish evaluated vs passed
+                passed_count = len(passed_signals)
+
+                if passed_count > 0:
                     self.logger.info(
-                        f"🎯 Top {len(signals)} signals this cycle: "
+                        f"🎯 Candidates after filters: {passed_count}/{signals_evaluated_total}"
+                    )
+                    self.logger.info(
+                        "🎯 Top signals this cycle: "
                         + ", ".join(
                             f"{s.side.upper()} {s.token_id[:6]} edge={s.edge_bps:.1f}bps"
-                            for s in signals
+                            for s in passed_signals[: self.config.signals.top_n_to_log]
                         )
                     )
+                else:
+                    self.logger.info(
+                        f"🎯 Candidates after filters: 0/{signals_evaluated_total} "
+                        "(all rejected by filters)"
+                    )
+
 
 
                 # Record orderbook summaries in DB
