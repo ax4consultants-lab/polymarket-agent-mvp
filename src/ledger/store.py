@@ -196,3 +196,36 @@ class Store:
         sql += " ORDER BY timestamp DESC"
         cursor = self._conn.execute(sql, params)
         return [dict(row) for row in cursor.fetchall()]
+
+    def record_orderbook_summary(
+        self,
+        cycle_id: int,
+        market_id: str,
+        token_id: str,
+        best_bid: float,
+        best_ask: float,
+        mid_price: float,
+        spread_bps: float,
+        depth_within_1pct: Optional[float] = None,
+    ) -> int:
+        """Record orderbook summary."""
+        cursor = self._conn.cursor()
+        cursor.execute(
+            """INSERT INTO orderbook_summaries (cycle_id, market_id, token_id,
+               best_bid, best_ask, mid_price, spread_bps, depth_within_1pct, timestamp)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                cycle_id,
+                market_id,
+                token_id,
+                best_bid,
+                best_ask,
+                mid_price,
+                spread_bps,
+                depth_within_1pct,
+                datetime.now().timestamp(),
+            ),
+        )
+        self._conn.commit()
+        return cursor.lastrowid
+

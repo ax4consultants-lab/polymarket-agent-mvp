@@ -8,6 +8,8 @@ from src.core.config import load_config
 from src.core.utils import add_jitter
 from src.ledger.store import Store
 from src.ops.logger import setup_logger
+from src.collector.market_discovery import discover_markets
+from src.collector.orderbook import fetch_orderbooks_for_markets
 
 
 class BotRunner:
@@ -36,7 +38,30 @@ class BotRunner:
             cycle_id = store.create_cycle(cycle_timestamp, 'success')
             
             try:
-                # TODO: Market discovery (Issue 4)
+                # Market discovery
+                markets = discover_markets(self.config)
+                self.logger.info(f"📊 Scanned {len(markets)} markets")
+
+                # Orderbook fetching
+                orderbooks = fetch_orderbooks_for_markets(
+                markets,
+                max_tokens=200,
+                timeout_per_token=2.0)
+                self.logger.info(f"📈 Fetched books for {len(orderbooks)} tokens")
+
+                # Record orderbook summaries in DB
+                for book in orderbooks:
+                    store.record_orderbook_summary(
+                        cycle_id=cycle_id,
+                        market_id=book.market_id,
+                        token_id=book.token_id,
+                        best_bid=book.best_bid,
+                        best_ask=book.best_ask,
+                        mid_price=book.mid_price,
+                        spread_bps=book.spread_bps,
+                    )
+
+                
                 # TODO: Orderbook fetching (Issue 5)
                 # TODO: Edge estimation (Issue 6)
                 # TODO: Risk checks (Issue 7)
@@ -50,7 +75,7 @@ class BotRunner:
                     cycle_id,
                     status='success',
                     execution_time_ms=execution_time,
-                    markets_scanned=0,
+                    markets_scanned=len(markets),
                     opportunities_found=0,
                     decisions_made=0
                 )
