@@ -197,6 +197,44 @@ class Store:
         cursor = self._conn.execute(sql, params)
         return [dict(row) for row in cursor.fetchall()]
 
+
+    def record_signal(
+        self,
+        cycle_id: int,
+        market_id: str,
+        token_id: str,
+        side: str,
+        fair_value: float,
+        edge_bps: float,
+        ranking_price: float,
+        p_implied_mid: float,
+        p_implied_exec_buy: float,
+        p_implied_exec_sell: float,
+    ) -> int:
+        """Persist a generated signal and its implied pricing assumptions."""
+        cursor = self._conn.cursor()
+        cursor.execute(
+            """INSERT INTO signals (cycle_id, market_id, token_id, side, fair_value,
+               edge_bps, ranking_price, p_implied_mid, p_implied_exec_buy,
+               p_implied_exec_sell, timestamp)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                cycle_id,
+                market_id,
+                token_id,
+                side,
+                fair_value,
+                edge_bps,
+                ranking_price,
+                p_implied_mid,
+                p_implied_exec_buy,
+                p_implied_exec_sell,
+                datetime.now().timestamp(),
+            ),
+        )
+        self._conn.commit()
+        return cursor.lastrowid
+
     def record_orderbook_summary(
         self,
         cycle_id: int,

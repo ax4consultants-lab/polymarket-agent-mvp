@@ -82,6 +82,25 @@ CREATE TABLE IF NOT EXISTS paper_fills (
 );
 """
 
+
+CREATE_SIGNALS_TABLE = """
+CREATE TABLE IF NOT EXISTS signals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cycle_id INTEGER NOT NULL,
+    market_id TEXT NOT NULL,
+    token_id TEXT NOT NULL,
+    side TEXT NOT NULL CHECK(side IN ('buy', 'sell')),
+    fair_value REAL NOT NULL,
+    edge_bps REAL NOT NULL,
+    ranking_price REAL NOT NULL,
+    p_implied_mid REAL NOT NULL,
+    p_implied_exec_buy REAL NOT NULL,
+    p_implied_exec_sell REAL NOT NULL,
+    timestamp REAL NOT NULL,
+    FOREIGN KEY (cycle_id) REFERENCES cycles(cycle_id)
+);
+"""
+
 CREATE_ORDERBOOK_SUMMARIES_TABLE = """
 CREATE TABLE IF NOT EXISTS orderbook_summaries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -108,6 +127,8 @@ CREATE_INDICES = [
     "CREATE INDEX IF NOT EXISTS idx_paper_fills_market ON paper_fills(market_id, token_id);",
     "CREATE INDEX IF NOT EXISTS idx_orderbook_summaries_cycle ON orderbook_summaries(cycle_id);",
     "CREATE INDEX IF NOT EXISTS idx_orderbook_summaries_market ON orderbook_summaries(market_id, token_id);",
+    "CREATE INDEX IF NOT EXISTS idx_signals_cycle ON signals(cycle_id);",
+    "CREATE INDEX IF NOT EXISTS idx_signals_market ON signals(market_id, token_id);",
 
 ]
 
@@ -122,6 +143,7 @@ def initialize_database(db_path: Path) -> None:
     cursor.execute(CREATE_DECISIONS_TABLE)
     cursor.execute(CREATE_PAPER_FILLS_TABLE)
     cursor.execute(CREATE_ORDERBOOK_SUMMARIES_TABLE)
+    cursor.execute(CREATE_SIGNALS_TABLE)
 
     for sql in CREATE_INDICES:
         cursor.execute(sql)
