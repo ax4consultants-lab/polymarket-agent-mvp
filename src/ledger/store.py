@@ -1,3 +1,4 @@
+
 import sqlite3
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -207,13 +208,15 @@ class Store:
         mid_price: float,
         spread_bps: float,
         depth_within_1pct: Optional[float] = None,
+        validity_reason: Optional[str] = None,
     ) -> int:
+
         """Record orderbook summary."""
         cursor = self._conn.cursor()
         cursor.execute(
             """INSERT INTO orderbook_summaries (cycle_id, market_id, token_id,
-               best_bid, best_ask, mid_price, spread_bps, depth_within_1pct, timestamp)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               best_bid, best_ask, mid_price, spread_bps, depth_within_1pct, validity_reason, timestamp)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 cycle_id,
                 market_id,
@@ -223,6 +226,7 @@ class Store:
                 mid_price,
                 spread_bps,
                 depth_within_1pct,
+                validity_reason,
                 datetime.now().timestamp(),
             ),
         )

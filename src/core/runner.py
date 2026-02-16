@@ -129,6 +129,7 @@ class BotRunner:
                         mid_price=book.mid_price,
                         spread_bps=book.spread_bps,
                         depth_within_1pct=book.depth_within_1pct,  # Add this
+                        validity_reason=book.validity_reason,
                     )
 
                 

@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS orderbook_summaries (
     mid_price REAL NOT NULL,
     spread_bps REAL NOT NULL,
     depth_within_1pct REAL,
+    validity_reason TEXT,
     timestamp REAL NOT NULL,
     FOREIGN KEY (cycle_id) REFERENCES cycles(cycle_id)
 );

@@ -1,10 +1,12 @@
 """CLOB orderbook fetching using py-clob-client."""
 import time
+import math
 from typing import Optional, List
 from py_clob_client.client import ClobClient
 import logging
 
 from src.core.types import OrderBook, OrderBookLevel
+from src.strategy.reason_codes import BookValidityReason
 
 
 logger = logging.getLogger("polymarket_bot.orderbook")
@@ -38,6 +40,41 @@ def calculate_depth_within_1pct(bids: List, asks: List, mid_price: float) -> flo
     
     return bid_depth + ask_depth
 
+
+def classify_book_validity(
+    best_bid: Optional[float],
+    best_ask: Optional[float]
+) -> Optional[str]:
+    """
+    Classify orderbook validity. Returns None if valid, otherwise reason code.
+    
+    Checks in order:
+    1. Missing bid or ask
+    2. NaN or Inf
+    3. Out of [0, 1] range
+    4. Crossed or locked
+    """
+    if best_bid is None:
+        return BookValidityReason.NO_BID.value
+    
+    if best_ask is None:
+        return BookValidityReason.NO_ASK.value
+    
+    # Check for NaN or Inf
+    if not math.isfinite(best_bid) or not math.isfinite(best_ask):
+        return BookValidityReason.NAN_OR_INF.value
+    
+    # Probability range check
+    if best_bid < 0 or best_ask > 1:
+        return BookValidityReason.OUT_OF_RANGE.value
+    
+    # Crossed or locked book
+    if best_ask <= best_bid:
+        return BookValidityReason.CROSSED_OR_LOCKED.value
+    
+    return None  # Valid
+
+
 def fetch_orderbook(token_id: str, timeout: float = 2.0) -> Optional[OrderBook]:
     """
     Fetch orderbook for a single token from CLOB API.
@@ -66,42 +103,33 @@ def fetch_orderbook(token_id: str, timeout: float = 2.0) -> Optional[OrderBook]:
                 size=float(ask.size)
             ))
         
-        # Skip if no liquidity
-        if not bids or not asks:
-            return None
-        
+        # Extract best levels
         best_bid = bids[0].price if bids else None
         best_ask = asks[0].price if asks else None
 
         # --- Orderbook validity classification ---
-        invalid_reason = None
+        validity_reason = classify_book_validity(best_bid, best_ask)
 
-        if best_bid is None:
-            invalid_reason = "no_bid"
-        elif best_ask is None:
-            invalid_reason = "no_ask"
-        elif best_bid < 0 or best_ask > 1:
-            invalid_reason = "out_of_range"
-        elif best_ask <= best_bid:
-            invalid_reason = "crossed_or_locked"
-        elif not (float("-inf") < best_bid < float("inf")) or not (float("-inf") < best_ask < float("inf")):
-            invalid_reason = "nan_or_inf"
-
-        if invalid_reason is not None:
+        # Calculate derived fields based on validity
+        if validity_reason is not None:
+            # Invalid book
             mid_price = 0.0
             spread_bps = None
             depth_within_1pct = 0.0
         else:
+            # Valid book - calculate mid
             mid_price = (best_bid + best_ask) / 2.0
-            if mid_price <= 0:
-                invalid_reason = "invalid_mid"
+            
+            # Sanity check mid
+            if mid_price <= 0 or not math.isfinite(mid_price):
+                validity_reason = BookValidityReason.INVALID_MID.value
                 mid_price = 0.0
                 spread_bps = None
                 depth_within_1pct = 0.0
             else:
+                # Valid mid - calculate spread and depth
                 spread_bps = ((best_ask - best_bid) / mid_price) * 10_000.0
                 depth_within_1pct = calculate_depth_within_1pct(bids, asks, mid_price)
-
 
         return OrderBook(
             market_id="",  # Will be set by caller
@@ -112,9 +140,10 @@ def fetch_orderbook(token_id: str, timeout: float = 2.0) -> Optional[OrderBook]:
             best_ask=best_ask,
             mid_price=mid_price,
             spread_bps=spread_bps,
-            last_trade_price=None, # Not provided by CLob API 120226
-            depth_within_1pct=depth_within_1pct, #added 120226
-            timestamp=time.time()
+            last_trade_price=None,  # Not provided by CLOB API
+            depth_within_1pct=depth_within_1pct,
+            timestamp=time.time(),
+            validity_reason=validity_reason
         )
         
     except Exception as e:

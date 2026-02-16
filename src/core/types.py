@@ -39,6 +39,7 @@ class OrderBook(BaseModel):
     last_trade_price: Optional[float] = None
     depth_within_1pct: Optional[float] = None
     timestamp: float
+    validity_reason: Optional[str] = None  # NEW: None means valid, otherwise reason code
 
 
 class Estimate(BaseModel):
