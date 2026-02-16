@@ -1,10 +1,15 @@
+# 1. DocString
 """Main bot runner loop."""
+# 2. Standard library imports
 import json # ensure this is at the top of the file.
 import signal
 from time import sleep, time
 from datetime import datetime
 from pathlib import Path
+from dataclasses import dataclass, field  # ADD THIS
+from collections import defaultdict        # ADD THIS
 
+# 3. Project imports
 from src.strategy.signal_generation import SignalGenerator
 from src.core.config import load_config
 from src.core.utils import add_jitter
@@ -13,7 +18,48 @@ from src.ops.logger import setup_logger
 from src.collector.market_discovery import discover_markets
 from src.collector.orderbook import fetch_orderbooks_for_markets
 
+# 4. New: CycleMetrics dataclass
+@dataclass
+class CycleMetrics:
+    """Per-cycle metrics for observability."""
+    # Discovery
+    markets_scanned: int = 0
+    markets_selected: int = 0
+    
+    # Orderbooks
+    orderbooks_attempted: int = 0
+    orderbooks_ok: int = 0
+    orderbooks_failed: int = 0  # API failures
+    invalid_books: dict = field(default_factory=lambda: defaultdict(int))  # reason -> count
+    
+    # Filters
+    filtered_invalid_book: int = 0
+    filtered_spread: int = 0
+    filtered_depth: int = 0
+    filtered_stale: int = 0
+    
+    # Signals
+    signals_generated: int = 0
+    signals_passed: int = 0
+    
+    def summary_line(self) -> str:
+        """Generate one-line summary for logging."""
+        invalid_breakdown = ", ".join(
+            f"{count} {reason}" for reason, count in self.invalid_books.items()
+        ) if self.invalid_books else "none"
+        
+        return (
+            f"📊 Markets: {self.markets_selected}/{self.markets_scanned} | "
+            f"Books: {self.orderbooks_ok}/{self.orderbooks_attempted} "
+            f"(invalid: {invalid_breakdown}) | "
+            f"Filtered: {self.filtered_invalid_book} invalid_book, "
+            f"{self.filtered_spread} spread, {self.filtered_depth} depth, "
+            f"{self.filtered_stale} stale | "
+            f"Signals: {self.signals_passed}/{self.signals_generated} passed"
+        )
 
+
+# 5. Existing BotRunner class
 class BotRunner:
     def __init__(self):
         self.config = load_config()
@@ -39,10 +85,17 @@ class BotRunner:
         
         with self.store as store:
             cycle_id = store.create_cycle(cycle_timestamp, 'success')
+
+            metrics = CycleMetrics() # Added 02162026
             
             try:
                 # Market discovery
                 markets = discover_markets(self.config)
+                
+                # Track discovery metrics
+                metrics.markets_scanned = len(markets)
+                metrics.markets_selected = len(markets)
+                
                 self.logger.info(f"📊 Scanned {len(markets)} markets")
 
                 # Orderbook fetching
@@ -52,10 +105,25 @@ class BotRunner:
                     timeout_per_token=self.config.orderbook.timeout_per_token,
                     rate_limit_delay=self.config.orderbook.rate_limit_delay
                 )
-                self.logger.info(f"📈 Fetched books for {len(orderbooks)} tokens")
+                
+                # Track orderbook metrics
+                total_tokens = sum(len(m.tokens) for m in markets)
+                metrics.orderbooks_attempted = min(total_tokens, self.config.orderbook.max_tokens_per_cycle)
+                metrics.orderbooks_ok = sum(1 for b in orderbooks if b.validity_reason is None)
+                metrics.orderbooks_failed = metrics.orderbooks_attempted - len(orderbooks)
+                
+                # Track invalid books by reason
+                for book in orderbooks:
+                    if book.validity_reason:
+                        metrics.invalid_books[book.validity_reason] += 1
+                
+                self.logger.info(f"📈 Fetched books for {len(orderbooks)} tokens ({metrics.orderbooks_ok} valid)")
 
                 # --- Signal generation (Issue 6 Part 3) ---
                 signals = self.signal_generator.generate_signals(cycle_id, orderbooks)
+
+                # Track signal metrics
+                metrics.signals_generated = len(signals)
 
                 signals_evaluated_total = len(signals)
                 passed_signals = []
@@ -79,6 +147,17 @@ class BotRunner:
                     if passed_filters:
                         passed_signals.append(sig)
 
+                    else:
+                        # Track filter reasons
+                        if sig.filter_reason == "spread_too_wide":
+                            metrics.filtered_spread += 1
+                        elif sig.filter_reason == "depth_too_thin":
+                            metrics.filtered_depth += 1
+                        elif sig.filter_reason == "snapshot_stale":
+                            metrics.filtered_stale += 1
+                        elif sig.filter_reason == "invalid_book":
+                            metrics.filtered_invalid_book += 1
+
                     store.record_signal(
                         cycle_id=sig.cycle_id,
                         market_id=sig.market_id,
@@ -94,7 +173,8 @@ class BotRunner:
                         reasons_json=reasons_json,
                     )
 
-
+                # Update passed signals count
+                metrics.signals_passed = len(passed_signals)
 
                 # Logging: distinguish evaluated vs passed
                 passed_count = len(passed_signals)
@@ -143,11 +223,14 @@ class BotRunner:
                     cycle_id,
                     status='success',
                     execution_time_ms=execution_time,
-                    markets_scanned=len(markets),
+                    markets_scanned=metrics.markets_scanned, #changed 02162026
                     opportunities_found=0,
                     decisions_made=0
                 )
                 
+                # Emit consolidated metrics summary
+                self.logger.info(metrics.summary_line())
+
                 self.error_count = 0  # Reset on success
                 
             except Exception as e:
