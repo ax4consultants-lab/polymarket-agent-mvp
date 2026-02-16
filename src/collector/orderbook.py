@@ -70,14 +70,38 @@ def fetch_orderbook(token_id: str, timeout: float = 2.0) -> Optional[OrderBook]:
         if not bids or not asks:
             return None
         
-        # Compute metrics
-        best_bid = bids[0].price if bids else 0.0
-        best_ask = asks[0].price if asks else 0.0
-        mid_price = (best_bid + best_ask) / 2.0 if best_bid and best_ask else 0.0
-        spread_bps = ((best_ask - best_bid) / best_bid * 10000) if best_bid > 0 else 9999.0
-        
-        # Compute depth within 1% of mid
-        depth_within_1pct = calculate_depth_within_1pct(bids, asks, mid_price)
+        best_bid = bids[0].price if bids else None
+        best_ask = asks[0].price if asks else None
+
+        # --- Orderbook validity classification ---
+        invalid_reason = None
+
+        if best_bid is None:
+            invalid_reason = "no_bid"
+        elif best_ask is None:
+            invalid_reason = "no_ask"
+        elif best_bid < 0 or best_ask > 1:
+            invalid_reason = "out_of_range"
+        elif best_ask <= best_bid:
+            invalid_reason = "crossed_or_locked"
+        elif not (float("-inf") < best_bid < float("inf")) or not (float("-inf") < best_ask < float("inf")):
+            invalid_reason = "nan_or_inf"
+
+        if invalid_reason is not None:
+            mid_price = 0.0
+            spread_bps = None
+            depth_within_1pct = 0.0
+        else:
+            mid_price = (best_bid + best_ask) / 2.0
+            if mid_price <= 0:
+                invalid_reason = "invalid_mid"
+                mid_price = 0.0
+                spread_bps = None
+                depth_within_1pct = 0.0
+            else:
+                spread_bps = ((best_ask - best_bid) / mid_price) * 10_000.0
+                depth_within_1pct = calculate_depth_within_1pct(bids, asks, mid_price)
+
 
         return OrderBook(
             market_id="",  # Will be set by caller
