@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import List
+import math
 
 from src.core.types import OrderBook
 from src.core.config import SignalsConfig
@@ -81,25 +82,27 @@ class SignalGenerator:
             # TODO: pass real snapshot_age_s from runner
             filt: FilterResult = self.filters.apply(book, snapshot_age_s=None)
 
-            # BUY signal
-            signals.append(
-                Signal(
-                    cycle_id=cycle_id,
-                    market_id=book.market_id,
-                    token_id=book.token_id,
-                    side="buy",
-                    fair_value_prob=fv,
-                    p_implied_mid=p_mid,
-                    p_implied_exec_buy=p_exec_buy,
-                    p_implied_exec_sell=p_exec_sell,
-                    edge_bps=edge_buy_bps,
-                    filter_reason=filt.reason,
-                    spread_bps=book.spread_bps or 0.0,
-                    depth_within_1pct=book.depth_within_1pct,
+            # BUY signal - guard against zero/non-finite exec price
+            if p-exec_buy > 0 and math.isfinite(p_exec_buy):
+                signals.append(
+                    Signal(
+                        cycle_id=cycle_id,
+                        market_id=book.market_id,
+                        token_id=book.token_id,
+                        side="buy",
+                        fair_value_prob=fv,
+                        p_implied_mid=p_mid,
+                        p_implied_exec_buy=p_exec_buy,
+                        p_implied_exec_sell=p_exec_sell,
+                        edge_bps=edge_buy_bps,
+                        filter_reason=filt.reason,
+                        spread_bps=book.spread_bps or 0.0,
+                        depth_within_1pct=book.depth_within_1pct,
+                    )
                 )
-            )
 
-            # SELL signal
+        # SELL signal - guard against zero/non-finite exec price
+        if p_exec_sell > 0 and math.isfinite(p_exec_sell):
             signals.append(
                 Signal(
                     cycle_id=cycle_id,
