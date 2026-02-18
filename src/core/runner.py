@@ -196,6 +196,40 @@ class BotRunner:
                         "(all rejected by filters)"
                     )
 
+                # Update passed signals count
+                metrics.signals_passed = len(passed_signals)
+
+                # Logging: distinguish evaluated vs passed
+                passed_count = len(passed_signals)
+
+                if passed_count > 0:
+                    self.logger.info(
+                        f"🎯 Candidates after filters: {passed_count}/{signals_evaluated_total}"
+                    )
+                    self.logger.info(
+                        "🎯 Top signals this cycle: "
+                        + ", ".join(
+                            f"{s.side.upper()} {s.token_id[:6]} edge={s.edge_bps:.1f}bps"
+                            for s in passed_signals[: self.config.signals.top_n_to_log]
+                        )
+                    )
+                else:
+                    self.logger.info(
+                        f"🎯 Candidates after filters: 0/{signals_evaluated_total} "
+                        "(all rejected by filters)"
+                    )
+
+                # Log rejected signals with detailed reasons (Issue #7 subtask 4)
+                rejected_signals = [s for s in signals if not s.filter_reason is None]
+                if rejected_signals and len(rejected_signals) <= 20:  # Only if manageable count
+                    self.logger.debug(f"🚫 Rejected signals ({len(rejected_signals)}):")
+                    for sig in rejected_signals:
+                        self.logger.debug(
+                            f"  - {sig.side.upper()} {sig.token_id[:8]} "
+                            f"edge={sig.edge_bps:+.1f}bps spread={sig.spread_bps:.1f}bps "
+                            f"depth={sig.depth_within_1pct or 0:.0f} → {sig.filter_reason}"
+                        )
+
 
 
                 # Record orderbook summaries in DB
