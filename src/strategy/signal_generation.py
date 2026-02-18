@@ -69,7 +69,10 @@ class SignalGenerator:
         """
         signals: List[Signal] = []
 
-        for book in books:
+        # Deterministic order: sort by market_id, token_id
+        books_sorted = sorted(books, key=lambda b: (b.market_id, b.token_id))
+
+        for book in books_sorted:
             p_mid, p_exec_buy, p_exec_sell = self._implied_probs(book)
             fv = self.fair_value.fair_value_prob(book)
 
