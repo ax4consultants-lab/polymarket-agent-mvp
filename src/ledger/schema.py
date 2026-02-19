@@ -119,6 +119,7 @@ CREATE TABLE IF NOT EXISTS signals (
 );
 """
 
+
 CREATE_INDICES = [
     "CREATE INDEX IF NOT EXISTS idx_cycles_timestamp ON cycles(timestamp);",
     "CREATE INDEX IF NOT EXISTS idx_account_states_cycle ON account_states(cycle_id);",
@@ -132,9 +133,17 @@ CREATE_INDICES = [
     "CREATE INDEX IF NOT EXISTS idx_signals_cycle ON signals(cycle_id);",
     "CREATE INDEX IF NOT EXISTS idx_signals_market_token ON signals(market_id, token_id);",
     "CREATE INDEX IF NOT EXISTS idx_signals_edge ON signals(cycle_id, edge_bps DESC);",
-
-
 ]
+
+
+def _ensure_orderbook_summaries_validity_reason_column(cursor: sqlite3.Cursor) -> None:
+    cursor.execute("PRAGMA table_info(orderbook_summaries)")
+    columns = {row[1] for row in cursor.fetchall()}
+    if "validity_reason" not in columns:
+        cursor.execute(
+            "ALTER TABLE orderbook_summaries ADD COLUMN validity_reason TEXT"
+        )
+
 
 def initialize_database(db_path: Path) -> None:
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -148,6 +157,8 @@ def initialize_database(db_path: Path) -> None:
     cursor.execute(CREATE_PAPER_FILLS_TABLE)
     cursor.execute(CREATE_ORDERBOOK_SUMMARIES_TABLE)
     cursor.execute(CREATE_SIGNALS_TABLE)
+
+    _ensure_orderbook_summaries_validity_reason_column(cursor)
 
     for sql in CREATE_INDICES:
         cursor.execute(sql)

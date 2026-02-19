@@ -1,4 +1,3 @@
-
 import sqlite3
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -43,6 +42,7 @@ class Store:
         )
         self._conn.commit()
         return cursor.lastrowid
+
 
     def update_cycle(self, cycle_id: int, **kwargs) -> None:
         fields = []
@@ -117,6 +117,7 @@ class Store:
         )
         self._conn.commit()
         return cursor.lastrowid
+
 
     def record_decision(
         self,
@@ -210,7 +211,6 @@ class Store:
         depth_within_1pct: Optional[float] = None,
         validity_reason: Optional[str] = None,
     ) -> int:
-
         """Record orderbook summary."""
         cursor = self._conn.cursor()
         cursor.execute(
@@ -291,4 +291,3 @@ class Store:
     
         cursor = self._conn.execute(sql, params)
         return [dict(row) for row in cursor.fetchall()]
-
